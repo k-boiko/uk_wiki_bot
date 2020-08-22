@@ -114,7 +114,6 @@ bot.onText(/\d\d:\d\d/, (msg, match) => {
 
   const [hours, minutes] = match[0].split(':');
   updateUser(chatId, {
-    status: 'subscribed',
     notifications_time: {
       hour: +hours,
       minute: +minutes
