@@ -68,7 +68,6 @@ bot.onText(/\/start/, (msg) => {
 // on user unsubscribe
 bot.onText(new RegExp(texts.BUTTON_TIME_CHANGE_REQUEST), (msg) => {
   const chatId = msg.chat.id;
-  updateUser(chatId, {status: 'unsubscribed'});
 
   bot.sendMessage(chatId, texts.TEXT_ON_TIME_CHANGE_REQUEST, {
     reply_markup: {
