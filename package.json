@@ -1,0 +1,27 @@
+{
+  "name": "uk_wiki_bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that sends daily digest of \"On this day\" Wikipedia project",
+  "main": "scripts/go.js",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.3",
+    "node-telegram-bot-api": "^0.50.0",
+    "request": "^2.88.2",
+    "request-promise": "^4.2.6"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node scripts/go.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kateboyko/uk_wiki_bot.git"
+  },
+  "author": "Kate Boyko kboyko1999@gmail.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kateboyko/uk_wiki_bot/issues"
+  },
+  "homepage": "https://github.com/kateboyko/uk_wiki_bot#readme"
+}
