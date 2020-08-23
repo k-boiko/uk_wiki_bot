@@ -8,19 +8,12 @@ const {UNNECESSARY_CHAPTERS} = require('../config');
 
 // for some reason cheerio throwed an error because of apostrophe
 // so i have to replace it
-const HOLIDAYS_REGEX = /Свята_і_пам'ятні_дні|Свята_та_пам'ятні_дні/gi;
-const HOLIDAYS_REPLACEMENT = "Свята_і_памятні_дні";
+const REGEX_REPLACEMENTS = [
+  [/Народні_повір'я/gi, "Народні_повіря"],
+  [/Свята_і_пам'ятні_дні|Свята_та_пам'ятні_дні/gi, "Свята_і_памятні_дні"]
+];
 
 const SEE_MORE_REGEX = /Дивись також/gi;
-
-const EpisodeKindsTagIDs = {
-  EVENTS: 'Події',
-  BIRTHS: 'Народились',
-  DEATHS: 'Померли',
-  HOLIDAYS: HOLIDAYS_REPLACEMENT,
-  NAME_DAYS: 'Іменини'
-};
-
 
 const CITATION_REGEX = /\[citation needed\]|\[\d+\]/gi;
 
@@ -160,7 +153,8 @@ const transcript = word => word.toLowerCase().split('').map(l => transcription[l
  }
  */
 function scrape(htmlBody) {
-  const $ = cheerio.load(htmlBody.replace(HOLIDAYS_REGEX, HOLIDAYS_REPLACEMENT));
+  htmlBody = REGEX_REPLACEMENTS.reduce((html, [regex, replacement]) => html.replace(regex, replacement), htmlBody);
+  const $ = cheerio.load(htmlBody);
 
   const sections = $('h2 .mw-headline')
     .map((_, element) => ({
