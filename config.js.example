@@ -1,3 +1,4 @@
 module.exports.TELEGRAM_TOKEN = '<<TELEGRAM_BOT_TOKEN>>';
 module.exports.DB_LOCATION = './storage/users.json';
-
+// TODO: add ability for each user to select excluded chapters
+module.exports.UNNECESSARY_CHAPTERS = ['Див. також', 'Народились', 'Померли', 'Примітки'];
