@@ -1,11 +1,10 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
-const request = require('request-promise');
 
 const config = require('../config');
-const scrape = require('./scrape');
-
+const {getWikiDay} = require('./scrape');
 const texts = require('./texts');
+const {addLeadingZero, chunkBy} = require('./utils');
 
 process.env.TZ = 'Europe/Kiev';
 
@@ -18,8 +17,6 @@ const defaultKeyboardConfig = {
   resize_keyboard: true
 };
 
-const addLeadingZero = x => `${x}`.padStart(2, '0');
-
 function generateTimeButtons() {
   return Array
     .from({length: 4}, (v, i) => i)
@@ -28,7 +25,7 @@ function generateTimeButtons() {
         .from({length: 6}, (v, i) => i)
         .map(col =>
           ({
-            text: `${addLeadingZero(6*row + col)}:00`,
+            text: `${addLeadingZero(6 * row + col)}:00`,
             // callback_data: JSON.stringify({
             //   'command': 'settime',
             //   'amount': `${addLeadingZero(6*row + col)}:00`
@@ -125,57 +122,61 @@ bot.onText(/\d\d:\d\d/, (msg, match) => {
   });
 });
 
-
-async function getWikiDay(monthIndex, dayOfMonth) {
-  return request(`https://uk.wikipedia.org/wiki/${dayOfMonth}_${encodeURIComponent(texts.MONTHS[monthIndex])}`)
-    .then((body) => scrape(body));
-}
-
-
-function composeDailyDigest(rawDailyEvents) {
-  return `
-${texts.getGreeting()}
-${rawDailyEvents.description}
-
-${texts.getHolidays(rawDailyEvents)}
-
-${texts.getEvents(rawDailyEvents)}
-
-${texts.getNameDays(rawDailyEvents)}`
-}
-/*
-TODO: add possibility to subscribe to this types of events
-
- ${texts.getBirths(rawDailyEvents)}
-
- ${texts.getDeaths(rawDailyEvents)}
- */
-
-
 setInterval(async function () {
+  const today = new Date();
+  const nextDay = new Date(today.getTime() + (24 * 60 * 60 * 1000));
   const currentTime = {
-    month: new Date().getMonth(),
-    day: new Date().getDate(),
-    hour: new Date().getHours(),
-    minute: new Date().getMinutes()
+    month: today.getMonth(),
+    day: today.getDate(),
+    hour: today.getHours(),
+    minute: today.getMinutes()
   };
 
   const thisDayEvents = await getWikiDay(currentTime.month, currentTime.day);
   const {users} = JSON.parse(fs.readFileSync(config.DB_LOCATION, 'utf8'));
+  const digest = texts.composeDailyDigest(thisDayEvents);
   Object.keys(users).forEach(userId => {
     const user = users[userId];
     if (user.status === 'subscribed') {
-      if(
+      if (
         user.notifications_time.hour === currentTime.hour &&
         user.notifications_time.minute === currentTime.minute
-      )
-      {
+      ) {
         console.log(`It is ${addLeadingZero(currentTime.hour)}:${addLeadingZero(currentTime.minute)}, and I am sending digest to user ${userId}`);
-        bot.sendMessage(userId, composeDailyDigest(thisDayEvents), {
-          parse_mode: 'Markdown',
-          reply_markup: defaultKeyboardConfig
-        });
+        sendDigest(bot, userId, digest);
+      }
+    }
+
+    // if user is admin, than send him a next day's digest beforehand
+    if(user.role === 'admin') {
+      if (
+        user.notifications_time.hour === currentTime.hour &&
+        user.notifications_time.minute === currentTime.minute
+      ) {
+        getWikiDay(nextDay.getMonth(), nextDay.getDate())
+          .then(nextDayEvents => {
+            sendDigest(bot, userId, texts.composeDailyDigest(nextDayEvents));
+          }
+        );
+
       }
     }
   });
 }, 1000 * 60); // every minute
+
+
+
+function sendDigest(bot, userId, digest) {
+  chunkBy(digest, 4096).forEach(async (chunk) => {
+    try {
+      await bot.sendMessage(userId, chunk, {
+        parse_mode: 'Markdown',
+        reply_markup: defaultKeyboardConfig
+      });
+    } catch (e) {
+      console.log(`ERROR: SENDING to ${userId} (${e.message})`)
+    }
+  })
+}
+
+module.exports.sendDigest = sendDigest;

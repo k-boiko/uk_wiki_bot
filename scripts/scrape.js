@@ -1,12 +1,17 @@
 /*
- * From https://github.com/sasalatart/on-this-day/blob/master/packages/scraper/src/scrape.ts
+ * Based on https://github.com/sasalatart/on-this-day/blob/master/packages/scraper/src/scrape.ts
  */
 const cheerio = require('cheerio');
+const request = require('request-promise');
+const texts = require('./texts');
+const {UNNECESSARY_CHAPTERS} = require('../config');
 
 // for some reason cheerio throwed an error because of apostrophe
 // so i have to replace it
-const HOLIDAYS_REGEX = /Свята_і_пам'ятні_дні/gi;
+const HOLIDAYS_REGEX = /Свята_і_пам'ятні_дні|Свята_та_пам'ятні_дні/gi;
 const HOLIDAYS_REPLACEMENT = "Свята_і_памятні_дні";
+
+const SEE_MORE_REGEX = /Дивись також/gi;
 
 const EpisodeKindsTagIDs = {
   EVENTS: 'Події',
@@ -31,7 +36,7 @@ function scrapDescription($) {
     .replace(CITATION_REGEX, '');
 }
 
-function scrapEpisodes($, episodeKind, lambda) {
+function scrapEpisodes($, episodeKind) {
   let episodes = [];
   let currentEl = $(`#${episodeKind}`).parent().next();
 
@@ -39,27 +44,38 @@ function scrapEpisodes($, episodeKind, lambda) {
     const tagName = currentEl.prop('tagName').toUpperCase();
 
     // Reached next episodes kind
-    if (!['UL', 'H3', 'P', 'DL'].includes(tagName)) break;
+    if (!['UL', 'H3', 'P', 'DL', 'DIV'].includes(tagName)) break;
+    // first unnecessary paragraph
 
-    // Sub-calendar
-    if (tagName === 'H3') continue;
+    if (currentEl.text().match(SEE_MORE_REGEX)) continue;
 
-    // if(episodeKind === EpisodeKindsTagIDs.NAME_DAYS) {
-    //   console.log(currentEl
-    //   // Hack because name days have different structure than other events in ukrainian wiki
-    //     .children(episodeKind === EpisodeKindsTagIDs.NAME_DAYS ? 'dd' : 'li')
-    //     .map((_, element) => lambda($(element))).get());
-    // }
-    // console.log(currentEl.children(episodeKind === EpisodeKindsTagIDs.NAME_DAYS ? 'dd' : 'li')
-    //   .map((_, element) => lambda($(element))))
-    episodes = episodes.concat(
-      currentEl
-      // Hack because name days have different structure than other events in ukrainian wiki
-        .children(episodeKind === EpisodeKindsTagIDs.NAME_DAYS ? 'dd' : 'li')
-        .map((_, element) => lambda($(element)))
-        // .filter((episode) => !!episode)
-        .get(),
-    );
+    // h3 is sub-calendar, div is thumbnail image
+    if (['H3', 'DIV'].includes(tagName)) continue;
+
+    if (['UL', 'DL'].includes(tagName)) {
+      episodes = episodes.concat(
+        currentEl
+          // Hack because of different structure in ukrainian wiki
+          .children(tagName === 'DL' ? 'dd' : 'li')
+          .map((_, element) => itemToEpisode($(element)))
+          .get()
+          .filter((episode) => episode && episode.description) // doesn't work with this
+          // .get(),
+      );
+    }
+    if (tagName === 'P') {
+      //it's a tricky story
+      // a paragraph can contain a single event or multiple
+      // so we need to know if we can split by \n
+      // and if there are multiple events, wrap them in proper objects and join in array
+      const {description} = itemToHoliday(currentEl);
+      const descriptions = description
+        .split(/\n/)
+        .filter(s => s.length)
+        .map(d => ({description: d.trim()}));
+
+      episodes = episodes.concat(descriptions);
+    }
   } while ((currentEl = currentEl.next()));
 
   return episodes;
@@ -68,35 +84,111 @@ function scrapEpisodes($, episodeKind, lambda) {
 const itemToEpisode = (elementNode) => {
   // specific chars at ukrainian wikipedia ¯\_(ツ)_/¯
   const [year, ...data] = elementNode.text().split(`${String.fromCharCode(160)}${String.fromCharCode(8212)}${String.fromCharCode(32)}`);
-  const dataString = data.join(' – ');
+  if (data.length) {
+    const dataString = data.join(' – ');
 
-  if (Number.isNaN(+year) || !dataString) {
-    return undefined;
+    if (Number.isNaN(+year) || !dataString) {
+      return {};
+    }
+
+    const yearSymbol = year.includes('BC') || year.includes('B.C') ? -1 : 1;
+
+    return {
+      year: +year.replace(/\D/g, '') * yearSymbol,
+      description: prepareItemText(dataString),
+    };
   }
-
-  const yearSymbol = year.includes('BC') || year.includes('B.C') ? -1 : 1;
-
-  return {
-    year: +year.replace(/\D/g, '') * yearSymbol,
-    description: dataString.replace(CITATION_REGEX, ''),
-  };
+  return itemToHoliday(elementNode);
 };
 
+const prepareItemText = text => text.trim().replace(CITATION_REGEX, '').replace(/\*/g, '');
+
 const itemToHoliday = (element) => ({
-  description: element.text().trim().replace(CITATION_REGEX, ''),
+  description: prepareItemText(element.text()),
 });
 
+
+const transcription = {
+  ґ: 'g',
+  й: 'y',
+  ц: 'ts',
+  у: 'u',
+  к: 'k',
+  е: 'e',
+  н: 'n',
+  г: 'h',
+  ш: 'sh',
+  щ: 'shch',
+  з: 'z',
+  х: 'h',
+  ї: 'yi',
+  ф: 'f',
+  і: 'i',
+  в: 'v',
+  а: 'a',
+  п: 'p',
+  р: 'r',
+  о: 'o',
+  л: 'l',
+  д: 'd',
+  ж: 'zh',
+  є: 'ye',
+  я: 'ya',
+  ч: 'ch',
+  с: 's',
+  м: 'm',
+  и: 'y',
+  т: 't',
+  ь: '',
+  б: 'b',
+  ю: 'yu'
+};
+
+const transcript = word => word.toLowerCase().split('').map(l => transcription[l] || '').join('');
+
+/*
+ returns object like
+ {
+  description: parsed first paragraph of article
+  narodylys: {
+    title: 'Народились',
+    episodes: [
+      { year: string, description: string }
+    ]
+  },
+  ...
+ }
+ */
 function scrape(htmlBody) {
   const $ = cheerio.load(htmlBody.replace(HOLIDAYS_REGEX, HOLIDAYS_REPLACEMENT));
 
-  return {
-    description: scrapDescription($).split('\n').shift(),
-    events: scrapEpisodes($, EpisodeKindsTagIDs.EVENTS, itemToEpisode),
-    births: scrapEpisodes($, EpisodeKindsTagIDs.BIRTHS, itemToEpisode),
-    deaths: scrapEpisodes($, EpisodeKindsTagIDs.DEATHS, itemToEpisode),
-    name_days: scrapEpisodes($, EpisodeKindsTagIDs.NAME_DAYS, itemToHoliday),
-    holidays: scrapEpisodes($, EpisodeKindsTagIDs.HOLIDAYS, itemToHoliday)
-  };
+  const sections = $('h2 .mw-headline')
+    .map((_, element) => ({
+      id: $(element).prop('id'),
+      title: $(element).text(),
+      keyName: transcript($(element).prop('id'))
+    }))
+    .get()
+    .filter(({title}) => !UNNECESSARY_CHAPTERS.includes(title));
+
+  return sections.reduce((acc, {id, title, keyName}) => ({
+    ...acc,
+    [keyName]: {
+      title,
+      episodes: scrapEpisodes($, id)
+    }
+  }), {
+    description: scrapDescription($).split('\n').shift()
+  });
 }
 
 module.exports = scrape;
+
+function getWikiDay(monthIndex, dayOfMonth) {
+  return request(`https://uk.wikipedia.org/wiki/${dayOfMonth}_${encodeURIComponent(texts.MONTHS[monthIndex])}`)
+    .catch(err => console.error(`ERROR: ${err.statusCode || 0} GET article for ${monthIndex}.${dayOfMonth} unsuccessful`))
+    .then((body) => scrape(body))
+    .catch(err => console.error(`ERROR: ${err.message} SCRAPE article for ${monthIndex}.${dayOfMonth} unsuccessful`));
+}
+
+module.exports.getWikiDay = getWikiDay;

@@ -52,9 +52,11 @@ This project is prepared for deployment with fo (by [School++](https://programmi
 
 
 ## TODOs
-- Ukrainian wikipedia has lots of categories. So we need to rewrite `scripts/scrape.js` to be flexible and to get list of all H2s and parse them. The titles of final message blocks might be the same as innerText of this headings.
+- ✅ Ukrainian wikipedia has lots of categories. So we need to rewrite `scripts/scrape.js` to be flexible and to get list of all H2s and parse them. The titles of final message blocks might be the same as innerText of this headings.
 - Add cute texts and options for bot. E.g. unsubscribe messages and daily greetings
 - Choose greetings based on current time (Good morning/afternoon/evening)
+- Add ability for each user to select excluded chapters
+- Add role "administrator" and send to them digests beforehand so that they will be able to fix Wikipedia inconsistency.
 
 ## License
 **The MIT License (MIT)**
