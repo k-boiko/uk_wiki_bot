@@ -10,7 +10,8 @@ const {UNNECESSARY_CHAPTERS} = require('../config');
 // so i have to replace it
 const REGEX_REPLACEMENTS = [
   [/Народні_повір'я/gi, "Народні_повіря"],
-  [/Свята_і_пам'ятні_дні|Свята_та_пам'ятні_дні/gi, "Свята_і_памятні_дні"]
+  [/_пам'ятні_/gi, "_памятні_"],
+  [/,_/gi, "_"]
 ];
 
 const SEE_MORE_REGEX = /Дивись також/gi;
