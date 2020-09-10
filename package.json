@@ -4,6 +4,8 @@
   "description": "Telegram bot that sends daily digest of \"On this day\" Wikipedia project",
   "main": "scripts/go.js",
   "dependencies": {
+    "@sentry/node": "^5.23.0",
+    "@sentry/tracing": "^5.23.0",
     "cheerio": "^1.0.0-rc.3",
     "node-telegram-bot-api": "^0.50.0",
     "request": "^2.88.2",

@@ -1,7 +1,23 @@
 const TelegramBot = require('node-telegram-bot-api');
-const fs = require('fs');
+const fs = require('fs')
+const Sentry = require('@sentry/node');
+const Tracing = require("@sentry/tracing");
 
 const config = require('../config');
+
+Sentry.init({
+  dsn: config.SENTRY_DSN,
+  integrations: [
+    // enable HTTP calls tracing
+    new Sentry.Integrations.Http({ tracing: true }),
+    // enable Express.js middleware tracing
+    new Tracing.Integrations.Express({ app }),
+  ],
+  tracesSampleRate: 1.0,
+});
+
+
+
 const {getWikiDay} = require('./scrape');
 const texts = require('./texts');
 const {addLeadingZero, chunkBy} = require('./utils');
